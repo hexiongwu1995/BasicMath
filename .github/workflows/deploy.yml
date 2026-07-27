@@ -9,6 +9,7 @@ on:
       - '**.css'
       - '**.js'
       - '**.pdf'
+      - '**.typ'
       - '.github/workflows/deploy.yml'
 
 jobs:
