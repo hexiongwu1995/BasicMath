@@ -32,8 +32,8 @@ jobs:
           from datetime import datetime, timezone
           import urllib.parse
 
-          # 配置 - 请修改为你的 GitHub Pages 地址
-          base_url = "https://hexio.github.io/BasicMath"
+          # 配置 - GitHub Pages 地址
+          base_url = "https://hexiongwu1995.github.io/BasicMath"
           opds_dir = "OPDS"
           output_file = "opds.xml"
 
@@ -126,7 +126,7 @@ jobs:
             <Description>搜索 BasicMath 数学文档库</Description>
             <Tags>math pdf ebook</Tags>
             <Url type="application/atom+xml" 
-                 template="https://hexio.github.io/BasicMath/opds.xml?q={searchTerms}"/>
+                 template="https://hexiongwu1995.github.io/BasicMath/opds.xml?q={searchTerms}"/>
           </OpenSearchDescription>
           EOF
 
