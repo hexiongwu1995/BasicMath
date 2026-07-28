@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy to GitHub Pages with OPDS
 
 on:
   push:
@@ -12,6 +12,7 @@ on:
       - '**.typ'
       - '**.ipynb'
       - '.github/workflows/deploy.yml'
+      - 'OPDS/**'
 
 jobs:
   deploy:
@@ -22,11 +23,117 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
+      - name: Generate OPDS Catalog
+        run: |
+          python3 << 'EOF'
+          import os
+          import xml.etree.ElementTree as ET
+          from datetime import datetime, timezone
+          import urllib.parse
+
+          # 配置 - 请修改为你的 GitHub Pages 地址
+          base_url = "https://hexio.github.io/BasicMath"
+          opds_dir = "OPDS"
+          output_file = "opds.xml"
+
+          # 注册命名空间
+          ET.register_namespace('', 'http://www.w3.org/2005/Atom')
+          ET.register_namespace('opds', 'http://opds-spec.org/2010/catalog')
+          ET.register_namespace('dc', 'http://purl.org/dc/terms/')
+
+          # 创建 Atom Feed 根元素
+          ns_atom = '{http://www.w3.org/2005/Atom}'
+          ns_opds = '{http://opds-spec.org/2010/catalog}'
+
+          feed = ET.Element(f'{ns_atom}feed')
+
+          # 添加 Feed 元数据
+          title = ET.SubElement(feed, f'{ns_atom}title')
+          title.text = "BasicMath 数学文档库"
+
+          updated = ET.SubElement(feed, f'{ns_atom}updated')
+          updated.text = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+          author = ET.SubElement(feed, f'{ns_atom}author')
+          author_name = ET.SubElement(author, f'{ns_atom}name')
+          author_name.text = "BasicMath Project"
+
+          # 添加自链接
+          self_link = ET.SubElement(feed, f'{ns_atom}link')
+          self_link.set('rel', 'self')
+          self_link.set('href', f'{base_url}/{output_file}')
+          self_link.set('type', 'application/atom+xml;profile=opds-catalog;kind=acquisition')
+
+          # 添加搜索链接
+          search_link = ET.SubElement(feed, f'{ns_atom}link')
+          search_link.set('rel', 'search')
+          search_link.set('href', f'{base_url}/opds-search.xml')
+          search_link.set('type', 'application/opensearchdescription+xml')
+
+          entry_count = 0
+
+          # 扫描 PDF 文件
+          if os.path.exists(opds_dir):
+              for filename in sorted(os.listdir(opds_dir)):
+                  if filename.lower().endswith('.pdf'):
+                      filepath = os.path.join(opds_dir, filename)
+                      file_stat = os.stat(filepath)
+                      file_size = file_stat.st_size
+                      file_modified = datetime.fromtimestamp(file_stat.st_mtime, tz=timezone.utc)
+
+                      # 创建 entry
+                      entry = ET.SubElement(feed, f'{ns_atom}entry')
+
+                      # 标题（去掉 .pdf 后缀）
+                      entry_title = ET.SubElement(entry, f'{ns_atom}title')
+                      entry_title.text = os.path.splitext(filename)[0]
+
+                      # ID
+                      entry_id = ET.SubElement(entry, f'{ns_atom}id')
+                      entry_id.text = f'{base_url}/{opds_dir}/{urllib.parse.quote(filename)}'
+
+                      # 更新时间
+                      entry_updated = ET.SubElement(entry, f'{ns_atom}updated')
+                      entry_updated.text = file_modified.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+                      # 内容摘要
+                      content = ET.SubElement(entry, f'{ns_atom}content')
+                      content.set('type', 'text')
+                      content.text = f"PDF 文档 - {file_size / 1024:.1f} KB"
+
+                      # 获取链接（acquisition 链接）
+                      acquisition_link = ET.SubElement(entry, f'{ns_atom}link')
+                      acquisition_link.set('rel', 'http://opds-spec.org/acquisition')
+                      acquisition_link.set('href', f'{base_url}/{opds_dir}/{urllib.parse.quote(filename)}')
+                      acquisition_link.set('type', 'application/pdf')
+
+                      entry_count += 1
+
+          # 写入文件
+          tree = ET.ElementTree(feed)
+          ET.indent(tree, space='  ')
+          tree.write(output_file, encoding='utf-8', xml_declaration=True)
+          print(f"Generated {output_file} with {entry_count} entries")
+          EOF
+
+      - name: Generate OpenSearch Description
+        run: |
+          cat > opds-search.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+            <ShortName>BasicMath 搜索</ShortName>
+            <Description>搜索 BasicMath 数学文档库</Description>
+            <Tags>math pdf ebook</Tags>
+            <Url type="application/atom+xml" 
+                 template="https://hexio.github.io/BasicMath/opds.xml?q={searchTerms}"/>
+          </OpenSearchDescription>
+          EOF
+
       - uses: actions/configure-pages@v6
-      
+
       - uses: actions/upload-pages-artifact@v5
         with:
           path: .
-      
+
       - uses: actions/deploy-pages@v5
